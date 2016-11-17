@@ -1,0 +1,6 @@
+.DS_Store
+.idea/
+parser.out
+parsetab.py
+parsetab.pyc
+test.py
