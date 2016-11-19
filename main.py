@@ -13,13 +13,11 @@ class Predicate(object):
         self.type = "Predicate"
 
     def __repr__(self):
-        return self.name + "(" + ",".join(self.arguments) + ")"
-
-    def __str__(self):
         if self.positive:
             return self.name + "(" + ",".join(self.arguments) + ")"
         else:
             return "~" + self.name + "(" + ",".join(self.arguments) + ")"
+
 
 class Clause(object):
     # positive = True
@@ -32,22 +30,14 @@ class Clause(object):
     def __repr__(self):
         or_string = ""
         for p in self.predicates:
-            or_string = or_string + str(p) + " | "
+            or_string = or_string + repr(p) + " | "
         or_string = or_string[:len(or_string) - 3]
+
         if self.positive:
             return "(" + or_string + ")"
         else:
             return "~(" + or_string + ")"
 
-    def __str__(self):
-        or_string = ""
-        for p in self.predicates:
-            or_string = or_string + str(p) + " | "
-        or_string = or_string[:len(or_string) - 3]
-        if self.positive:
-            return "(" + or_string + ")"
-        else:
-            return "~(" + or_string + ")"
 
 class Sentence(object):
     # positive = True
@@ -60,21 +50,14 @@ class Sentence(object):
     def __repr__(self):
         and_string = ""
         for c in self.clauses:
-            or_string = ""
-            if len(c.predicates) == 1:
-                or_string = str(c.predicates[0])
-            elif len(c.predicates) > 1:
-                for p in c.predicates:
-                    or_string = or_string + str(p) + " | "
-                or_string = or_string[:len(or_string) - 3]
+            and_string = and_string + repr(c) + " & "
 
-            and_string = and_string + or_string + " & "
         and_string = and_string[:len(and_string) - 3]
 
         if self.positive:
-            return "(" + and_string + ")"
+            return "{" + and_string + "}"
         else:
-            return "~(" + and_string + ")"
+            return "~{" + and_string + "}"
 
 
 def parseInputFile(input_path):
@@ -92,14 +75,12 @@ def parseInputFile(input_path):
         # print queries
         # print knowledge_base
 
-input_path = "./input.txt"
-parseInputFile(input_path)
 
 # set up tokens
 tokens = (
    'LPAREN',
    'RPAREN',
-   'PREDICATE',
+   'FACTOR', # predicates and constants
    'AND',
    'OR',
    'IMPLY',
@@ -111,7 +92,7 @@ tokens = (
 # Regular expression rules for simple tokens
 t_LPAREN  = r'\('
 t_RPAREN  = r'\)'
-t_PREDICATE = r'[A-Z][a-z]*'
+t_FACTOR = r'[A-Z][a-z]*'
 t_AND = r'\&'
 t_OR = r'\|'
 t_IMPLY = r'=>'
@@ -192,24 +173,19 @@ def p_negative_sentence(p):
     p[0] = p[2]
 
 
-# def p_negative_clauses(p):
-#     '''sentence : NEGATIVE clause'''
-#     predicates = p[2].predicates
-#     clauses = []
-#     for pre in predicates:
-#         pre.positive = (not pre.positive)
-#         clauses.append(Clause([pre]))
-#     p[0] = Sentence(clauses)
-
-
-def p_negative_clauses(p):
+def p_negative_clause(p):
     '''clause : NEGATIVE clause'''
     p[2].positive = (not p[2].positive)
     p[0] = p[2]
 
+def p_negative_predicate(p):
+    '''predicate : NEGATIVE predicate'''
+    p[2].positive = (not p[2].positive)
+    p[0] = p[2]
 
 def p_imply_clause(p):
     '''clause : LPAREN clause IMPLY clause RPAREN'''
+
     for pre in p[2].predicates:
         pre.positive = (not pre.positive)
     predicates = p[2].predicates + p[4].predicates
@@ -234,9 +210,9 @@ def p_sentence_clauses(p):
 # but we need positive flag when doing negative operation
 def p_sentence_clause(p):
     '''sentence : clause'''
-    positive = p[1].positive
-    p[1].positive = (not p[1].positive)
-    p[0] = Sentence([p[1]], positive)
+    # positive = p[1].positive
+    # p[1].positive = (not p[1].positive)
+    p[0] = Sentence([p[1]])
 
 def p_clause_predicate(p):
     '''clause : predicate'''
@@ -265,15 +241,17 @@ def p_clause_predicate(p):
 #     p[0] = p[2]
 
 
-
-
 def p_predicate_argument(p):
-    '''predicate : PREDICATE LPAREN argument RPAREN'''
+    '''predicate : FACTOR LPAREN argument RPAREN'''
     p[0] = Predicate(p[1], p[3])
 
 
 def p_argument_var(p):
     '''argument : VAR'''
+    p[0] = [p[1]]
+
+def p_argument_factor(p):
+    '''argument : FACTOR'''
     p[0] = [p[1]]
 
 def p_arguments_argument(p):
@@ -296,16 +274,40 @@ def p_error(p):
 # Build the parser
 parser = yacc.yacc()
 
-KB = []
-# KB.append('(A(x, y)| H(x, y, z))')
-# KB.append('~B(x, y)')
+input = []
+input.append('((A(y) & H(x)) & B(z))')
+input.append('(A(y) | H(x))')
+input.append('(A(y) => H(Bob))')
+input.append('~(A(x) | ~B(y))')
+input.append('(D(x,y) => ~H(y))')
 
-KB.append('((A(y) & H(x)) & B(z))')
-KB.append('(A(y) | H(x))')
-KB.append('(A(y) => H(x))')
-KB.append('~(A(x) | B(y))')
-KB.append('C(x)')
-for s in KB:
+KB = {}
+
+for s in input:
     result = parser.parse(s)
     print(result)
 
+    clauses = result.clauses
+    for c in clauses:
+        predicates = c.predicates
+        # clause is positive, add this clause in KB
+        if c.positive:
+            for p in predicates:
+                if p.name not in KB:
+                    KB[p.name] = [c]
+                else:
+                    KB[p.name].append(c)
+
+        # clause is negative, move ~ inward
+        else:
+            for p in predicates:
+                p.positive = (not p.positive)
+                if p.name not in KB:
+                    KB[p.name] = [Clause([p])]
+                else:
+                    KB[p.name].append(Clause([p]))
+
+print(KB)
+
+input_path = "./input.txt"
+parseInputFile(input_path)
