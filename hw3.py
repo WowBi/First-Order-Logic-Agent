@@ -19,7 +19,6 @@ class Predicate(object):
             return "~" + self.name + "(" + ",".join(self.arguments) + ")"
 
 class Clause(object):
-    # positive = True
     # predicates = []
     def __init__(self, predicates):
         self.predicates = predicates
@@ -32,7 +31,7 @@ class Clause(object):
             or_string = or_string + repr(p) + " | "
         or_string = or_string[:len(or_string) - 3]
 
-        return "(" + or_string + ")"
+        return "clause: (" + or_string + ")"
 
 def parseInputFile(input_path):
 
@@ -369,16 +368,15 @@ def distribution_or_over_and(result):
                 return value
 
 
-
-
-def add_parsing_result_to_KB(result, KB):
-
-    if isClause(result):
-        predicate_name = result.name
-        if predicate_name in KB:
-            KB[predicate_name].append(result)
+def addClauseToKB(clauseList, KB):
+    new_clause = Clause(clauseList[1:])
+    for i in range(1, len(clauseList)):
+        predicate = clauseList[i]
+        if predicate.name in KB:
+            KB[predicate.name].append(new_clause)
         else:
-            KB[predicate_name] = list(result)
+            KB[predicate.name] = [new_clause]
+
 
 
 input_path = "./input.txt"
@@ -386,7 +384,7 @@ input_path = "./input.txt"
 
 
 KB = {}
-#
+
 for s in ori_KB:
     result = parser.parse(s)
     print(result)
@@ -400,6 +398,27 @@ for s in ori_KB:
     print("after distribution")
     print(result)
     print("\n")
+
+    if isinstance(result, Predicate):
+        KB[result.name] = Clause([result])
+    elif isinstance(result, list):
+        if result[0] == "|":
+            addClauseToKB(result, KB)
+        elif result[0] == "&":
+            for i in range(1, len(result)):
+                if isinstance(result[i], Predicate):
+                    new_clause = Clause([result[i]])
+                    if result[i].name in KB:
+                        KB[result[i].name].append(new_clause)
+                    else:
+                        KB[result[i].name] = [new_clause]
+                elif isinstance(result[i], list):
+                    addClauseToKB(result[i], KB)
+
+print(KB)
+print(KB["A"])
+print(len(KB["A"]))
+
 
 
 
