@@ -1,13 +1,16 @@
 2
 Ancestor(Liz,Billy)
 Ancestor(Liz,Bob)
-6
+9
 Mother(Liz,Charley)
 Father(Charley,Billy)
-((~Mother(x,y)) | Parent(x,y))
-((~Father(x,y)) & Parent(x,y))
+(Mother(x,y) & Parent(x,y))
 (Parent(x,y) | Ancestor(x,y))
+((Parent(x,y) & Ancestor(y,z)) & Come(x))
 (~(Parent(x,y) & Ancestor(y,z)))
+(A(x) => B(y))
+((D(x,y) & F(y)) => C(x,y))
+(~(~(~A(z))))
 
 
 def process_parsing_result(result, KB):

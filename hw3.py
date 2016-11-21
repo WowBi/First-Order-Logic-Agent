@@ -143,15 +143,94 @@ def p_error(p):
 # Build the parser
 parser = yacc.yacc()
 
+def isClause(q):
+    if not isinstance(q, list):
+        return True
+    elif q[0] != "|":
+        return False
+    else:
+        for i in range(1, len(q)):
+            if isinstance(q[i], list):
+                return False
+        return True
+
+def negate_item(item):
+    if isClause(item):
+        if isinstance(item, list):
+            item[0] = "&"
+            for i in range(1, len(item)):
+                item[i].positive = (not item[i].positive)
+        else:
+            item.positive = (not item.positive)
+        return item
+    else:
+        if item[0] == "~":
+            item = item[1]
+            # not OK in [&, A, [~, B]]
+            while isinstance(item, list) and item[0] == "~":
+                item = negate_item(item)
+            return item
+        if item[0] == "&":
+            item[0] = "|"
+            item1 = negate_item(item[1])
+            item2 = negate_item(item[2])
+            return ["|", item1, item2]
+
+        if item[0] == "|":
+            item[0] = "&"
+            item1 = negate_item(item[1])
+            item2 = negate_item(item[2])
+            return ["&", item1, item2]
+
+        if item[0] == "=>":
+            item[0] = "&"
+            item2 = negate_item(item[2])
+            return ["&", item[1], item2]
+
+# step 2: Move NOT inward
+def move_not_inward(result):
+    if isClause(result):
+        return result
+    elif result[0] == "~":
+        return negate_item(result[1])
+    else:
+        for i in range(1, len(result)):
+            result[i] = move_not_inward(result[i])
+        return result
+
+
+
+
+
+
+
+def add_parsing_result_to_KB(result, KB):
+
+    if isClause(result):
+        predicate_name = result.name
+        if predicate_name in KB:
+            KB[predicate_name].append(result)
+        else:
+            KB[predicate_name] = list(result)
+
+
+
+
+
 input_path = "./input.txt"
 (queries, ori_KB) = parseInputFile(input_path)
 
 
 KB = {}
-
+#
 for s in ori_KB:
     result = parser.parse(s)
+    print(result)
+    result = move_not_inward(result)
+    print("after")
+    print(result)
+    print("\n")
 
-print(KB)
+
 
 
