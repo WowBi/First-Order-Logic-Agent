@@ -400,7 +400,10 @@ for s in ori_KB:
     print("\n")
 
     if isinstance(result, Predicate):
-        KB[result.name] = Clause([result])
+        if result.name in KB:
+            KB[result.name].append(Clause([result]))
+        else:
+            KB[result.name] = [Clause([result])]
     elif isinstance(result, list):
         if result[0] == "|":
             addClauseToKB(result, KB)
