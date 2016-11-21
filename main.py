@@ -22,9 +22,9 @@ class Predicate(object):
 class Clause(object):
     # positive = True
     # predicates = []
-    def __init__(self, predicates, positive = True):
+    def __init__(self, predicates):
         self.predicates = predicates
-        self.positive = positive
+        # self.positive = positive
         self.type = "Clause"
 
     def __repr__(self):
@@ -33,31 +33,39 @@ class Clause(object):
             or_string = or_string + repr(p) + " | "
         or_string = or_string[:len(or_string) - 3]
 
-        if self.positive:
-            return "(" + or_string + ")"
-        else:
-            return "~(" + or_string + ")"
+        return "(" + or_string + ")"
+
 
 
 class Sentence(object):
     # positive = True
-    # clauses = []
-    def __init__(self, clauses, positive = True):
-        self.clauses = clauses
-        self.positive = positive
+    # predicates = []
+    def __init__(self, predicates):
+        self.predicates = predicates
+        # self.positive = positive
         self.type = "Sentence"
 
     def __repr__(self):
         and_string = ""
-        for c in self.clauses:
-            and_string = and_string + repr(c) + " & "
+        for p in self.predicates:
+            and_string = and_string + repr(p) + " & "
 
         and_string = and_string[:len(and_string) - 3]
 
-        if self.positive:
-            return "{" + and_string + "}"
-        else:
-            return "~{" + and_string + "}"
+        return "{" + and_string + "}"
+
+class CNF(object):
+    def __init__(self, clauses):
+        self.clauses = clauses
+        # self.positive = positive
+        self.type = "CNF"
+
+    def __repr__(self):
+        result = ""
+        for c in self.clauses:
+            result = result + repr(c) + " & "
+        result = result[: len(result) - 3]
+        return "CNF: " + result
 
 
 def parseInputFile(input_path):
@@ -72,8 +80,7 @@ def parseInputFile(input_path):
         num_of_kb = int(f.readline().strip())
         for i in range(num_of_kb):
             knowledge_base.append(f.readline().strip())
-        # print queries
-        # print knowledge_base
+        return (queries, knowledge_base)
 
 
 # set up tokens
@@ -121,7 +128,6 @@ def t_error(t):
 
 # Build the lexer
 lexer = lex.lex()
-lexer.input("(A(x)&H(x, y))")
 # while True:
 #     tok = lexer.token()
 #     if not tok:
@@ -130,115 +136,105 @@ lexer.input("(A(x)&H(x, y))")
 
 
 
-# def negative_clause_helper(p):
-#     if isinstance(p, list):
-#         # ['PREDICATE', 'H', ['x']]
-#         if p[0] == "PREDICATE":
-#             p[0] = "NEGATIVE_PREDICATE"
-#
-#         if p[0] == "OR":
-#             p[0] = "AND"
-#             for i in range(1, len(p)):
-#                 negative_clause_helper(p[i])
-#
-#         if p[0] == "AND":
-#             p[0] = "OR"
-#             for i in range(1, len(p)):
-#                 negative_clause_helper(p[i])
-#         return p
-#
-#     else:
-#         return ["NEGATIVE", p]
+#-----------------------------------
+def negative_clause_helper(clause):
+    if len(clause.predicates) == 1:
+        clause.predicates[0].positive = (not clause.predicates[0].positive)
+        return clause
+    elif len(clause.predicates) > 1:
+        new_clauses = []
+        for pre in clause.predicates:
+            pre.positive = (not pre.positive)
+            new_clause = Clause([pre])
+            new_clauses.append(new_clause)
+        return Sentence(new_clauses)
 
-# def p_negative_sentence(p):
-#     '''clause : NEGATIVE sentence'''
-#     predicates = p[2][1:]
-#     for pre in predicates:
-#         pre.positive = (not pre.positive)
+
+# def p_cnf_and_cnf(p):
+#     '''cnf : LPAREN cnf AND cnf RPAREN'''
+#     p[0] = CNF(p[2].clauses + p[4].clauses)
+#
+#
+# def p_sentence_or_sentence(p):
+#     '''cnf : LPAREN sentence OR sentence RPAREN'''
+#     clauses = []
+#     for p1 in p[2].predicates:
+#         for p2 in p[4].predicates:
+#             clause = Clause([p1, p2])
+#             clauses.append(clause)
+#     p[0] = CNF(clauses)
+
+# def p_clause_predicate(p):
+#     '''clause : predicate'''
+#     p[0] = Clause([p[1]])
+
+def p_clauses_to_cnf(p):
+    '''cnf : LPAREN clause AND clause RPAREN'''
+    p[0] = CNF([p[2], p[4]])
+
+
+
+# def p_imply_clause(p):
+#     '''clause : LPAREN clause IMPLY clause RPAREN'''
+#     p[2].positive = (not p[2].positive)
+#     # not right !!! negative clause or clause
+#     predicates = p[2].predicates + p[4].predicates
 #     p[0] = Clause(predicates)
 
-# def p_negative_clause(p):
-#     '''sentence : NEGATIVE clause'''
-#     predicates = p[2].predicates
-#     for pre in predicates:
-#         pre.positive = (not pre.positive)
-#     p[0] = ["AND"] + predicates
-
-
-#-----------------------------------
-
-def p_negative_sentence(p):
-    '''sentence : NEGATIVE sentence'''
-    p[2].positive = (not p[2].positive)
-    p[0] = p[2]
-
-
-def p_negative_clause(p):
-    '''clause : NEGATIVE clause'''
-    p[2].positive = (not p[2].positive)
-    p[0] = p[2]
-
-def p_negative_predicate(p):
-    '''predicate : NEGATIVE predicate'''
-    p[2].positive = (not p[2].positive)
-    p[0] = p[2]
-
-def p_imply_clause(p):
-    '''clause : LPAREN clause IMPLY clause RPAREN'''
-
-    for pre in p[2].predicates:
-        pre.positive = (not pre.positive)
-    predicates = p[2].predicates + p[4].predicates
-    p[0] = Clause(predicates)
-
-
-def p_clause_predicates(p):
-    '''clause : LPAREN clause OR clause RPAREN'''
-    predicates = p[2].predicates + p[4].predicates
-    p[0] = Clause(predicates)
 
 def p_and_sentences(p):
     '''sentence : LPAREN sentence AND sentence RPAREN'''
-    clauses = p[2].clauses + p[4].clauses
-    p[0] = Sentence(clauses)
+    predicates = p[2].predicates + p[4].predicates
+    p[0] = Sentence(predicates)
 
-def p_sentence_clauses(p):
-    '''sentence : LPAREN clause AND clause RPAREN'''
+
+# def p_sentence_predicate(p):
+#     '''sentence : predicate'''
+#     print('nono')
+#     p[0] = Sentence([p[1]])
+
+
+def p_negative_sentence(p):
+    '''clause : LPAREN NEGATIVE sentence RPAREN'''
+    predicates = p[3].predicates
+    for pre in predicates:
+        pre.positive = (not pre.positive)
+    p[0] = Clause(predicates)
+#
+#
+def p_negative_clause(p):
+    '''sentence : LPAREN NEGATIVE clause RPAREN'''
+    print("555555555555")
+    predicates = p[3].predicates
+    for pre in predicates:
+        pre.positive = (not pre.positive)
+    p[0] = Sentence(predicates)
+
+#
+def p_negative_predicate(p):
+    '''predicate : LPAREN NEGATIVE predicate RPAREN'''
+    p[3].positive = (not p[3].positive)
+    p[0] = p[3]
+
+
+def p_clause_clauses(p):
+    '''clause : LPAREN clause OR clause RPAREN'''
+    print("111")
+    predicates = p[2].predicates + p[4].predicates
+    p[0] = Clause(predicates)
+
+def p_predicates_to_sentence(p):
+    '''sentence : LPAREN predicate AND predicate RPAREN'''
     p[0] = Sentence([p[2], p[4]])
 
-# All types are changed to sentence, so when changing sentence does not need positive to mark
-# but we need positive flag when doing negative operation
-def p_sentence_clause(p):
-    '''sentence : clause'''
-    # positive = p[1].positive
-    # p[1].positive = (not p[1].positive)
-    p[0] = Sentence([p[1]])
-
-def p_clause_predicate(p):
-    '''clause : predicate'''
-    # it seems negative clause rule did negating
-    p[0] = Clause([p[1]])
+def p_clause_predicates(p):
+    '''clause : LPAREN predicate OR predicate RPAREN'''
+    print("222")
+    p[0] = Clause([p[2], p[4]])
 
 
 
-# -------- with no parenthesis parsing --------
 
-# def p_clause_predicates(p):
-#     '''clause : clause OR clause'''
-#     predicates = p[1].predicates + p[3].predicates
-#     p[0] = Clause(predicates)
-#
-# def p_sentence_predicates(p):
-#     '''sentence : clause AND clause'''
-#     p[0] = Sentence([p[1], p[3]])
-#
-# def p_clause_parenthesis(p):
-#     '''clause : LRAREN clause RPAREN'''
-#     p[0] = p[2]
-#
-# def p_sentence_parenthesis(p):
-#     '''sentence : LRAREN sentence RPAREN'''
-#     p[0] = p[2]
 
 
 def p_predicate_argument(p):
@@ -246,68 +242,59 @@ def p_predicate_argument(p):
     p[0] = Predicate(p[1], p[3])
 
 
-def p_argument_var(p):
-    '''argument : VAR'''
-    p[0] = [p[1]]
-
-def p_argument_factor(p):
-    '''argument : FACTOR'''
-    p[0] = [p[1]]
-
 def p_arguments_argument(p):
     '''argument : argument COMMA argument'''
     p[0] = p[1] + p[3]
 
 
+def p_argument_factor(p):
+    '''argument : FACTOR
+                | VAR'''
+    p[0] = [p[1]]
 
 # Error rule for syntax errors
 def p_error(p):
     print("Syntax error in input!")
 
 
-# precedence = (
-#     ('AND', 'IMPLY'),
-#     ('left', 'LPAREN', 'RPAREN'),
-#     ('NEGATIVE'),
-# )
-
 # Build the parser
 parser = yacc.yacc()
 
-input = []
-input.append('((A(y) & H(x)) & B(z))')
-input.append('(A(y) | H(x))')
-input.append('(A(y) => H(Bob))')
-input.append('~(A(x) | ~B(y))')
-input.append('(D(x,y) => ~H(y))')
+# test
+# s = "Ancestor(Liz,Billy)"
+# result = parser.parse(s)
+# print(result)
+
+
+input_path = "./input.txt"
+(queries, ori_KB) = parseInputFile(input_path)
+
 
 KB = {}
 
-for s in input:
+for s in ori_KB:
     result = parser.parse(s)
     print(result)
 
-    clauses = result.clauses
-    for c in clauses:
-        predicates = c.predicates
-        # clause is positive, add this clause in KB
-        if c.positive:
-            for p in predicates:
-                if p.name not in KB:
-                    KB[p.name] = [c]
-                else:
-                    KB[p.name].append(c)
-
-        # clause is negative, move ~ inward
-        else:
-            for p in predicates:
-                p.positive = (not p.positive)
-                if p.name not in KB:
-                    KB[p.name] = [Clause([p])]
-                else:
-                    KB[p.name].append(Clause([p]))
+    # clauses = result.clauses
+    # for c in clauses:
+    #     predicates = c.predicates
+    #     # clause is positive, add this clause in KB
+    #     if c.positive:
+    #         for p in predicates:
+    #             if p.name not in KB:
+    #                 KB[p.name] = [c]
+    #             else:
+    #                 KB[p.name].append(c)
+    #
+    #     # clause is negative, move ~ inward
+    #     else:
+    #         for p in predicates:
+    #             p.positive = (not p.positive)
+    #             if p.name not in KB:
+    #                 KB[p.name] = [Clause([p])]
+    #             else:
+    #                 KB[p.name].append(Clause([p]))
 
 print(KB)
 
-input_path = "./input.txt"
-parseInputFile(input_path)

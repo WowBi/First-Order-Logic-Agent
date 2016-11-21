@@ -1,0 +1,42 @@
+2
+Ancestor(Liz,Billy)
+Ancestor(Liz,Bob)
+6
+Mother(Liz,Charley)
+Father(Charley,Billy)
+((~Mother(x,y)) | Parent(x,y))
+((~Father(x,y)) & Parent(x,y))
+(Parent(x,y) | Ancestor(x,y))
+(~(Parent(x,y) & Ancestor(y,z)))
+
+
+def process_parsing_result(result, KB):
+    if isinstance(result, list):
+        if result[0] == "|":
+            predicates = list()
+            for i in range(1, len(result)):
+                if isinstance(result[i], list):
+
+
+        if result[0] == "=>":
+            result[0] = "|"
+            result[1] = ["~", result[1]]
+
+        if result[0] == "~":
+            for i in range(1, len(result)):
+                if not isinstance(result[i], list):
+                    result[i].positive = (not result[i].positive)
+                else:
+                    if result[i][0] == ""
+    else:
+        KB.append(result)
+
+def isClause(q):
+    if not isinstance(q, list):
+        return True
+    elif q[0] != "|":
+        return False
+    else:
+        for i in range(1, len(q)):
+            if isinstance(q[i], list):
+                return True
