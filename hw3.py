@@ -143,6 +143,9 @@ def p_error(p):
 # Build the parser
 parser = yacc.yacc()
 
+
+
+
 def isClause(q):
     if not isinstance(q, list):
         return True
@@ -153,6 +156,7 @@ def isClause(q):
             if isinstance(q[i], list):
                 return False
         return True
+
 
 def negate_item(item):
     if isClause(item):
@@ -186,6 +190,21 @@ def negate_item(item):
             item[0] = "&"
             item2 = negate_item(item[2])
             return ["&", item[1], item2]
+
+# step 1: eliminate implication
+def eliminate_implication(result):
+    if isClause(result):
+        return result
+    elif result[0] == "=>":
+        item1 = eliminate_implication(result[1])
+        item1 = negate_item(item1)
+        item2 = eliminate_implication(result[2])
+        return ["|", item1, item2]
+    else:
+        for i in range(1, len(result)):
+            result[i] = eliminate_implication(result[i])
+        return result
+
 
 # step 2: Move NOT inward
 def move_not_inward(result):
