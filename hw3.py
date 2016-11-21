@@ -96,7 +96,6 @@ lexer = lex.lex()
 
 
 
-
 def p_not_expression(p):
     '''expression : LPAREN NOT expression RPAREN'''
     if not isinstance(p[3], list):
@@ -157,6 +156,17 @@ def isClause(q):
                 return False
         return True
 
+# i.e. CNF
+def isSentence(q):
+    if not isinstance(q, list):
+        return True
+    elif q[0] != "&":
+        return False
+    else:
+        for i in range(1, len(q)):
+            if not isClause(q[i]):
+                return False
+        return True
 
 def negate_item(item):
     if isClause(item):
@@ -218,7 +228,145 @@ def move_not_inward(result):
         return result
 
 
+# step 3: Distribution OR over AND
+def distribution_or_over_and(result):
+    if isClause(result) or isSentence(result):
+        return result
 
+    if result[0] == "|":
+        if isClause(result[1]) and isClause(result[2]):
+            value = ["|"]
+
+            if isinstance(result[1], list):
+                value = value + result[1][1:]
+            else:
+                value.append(result[1])
+
+            if isinstance(result[2], list):
+                value = value + result[2][1:]
+            else:
+                value.append(result[2])
+
+            return value
+
+        elif isClause(result[1]):
+            item2 = distribution_or_over_and(result[2])
+            if item2[0] == "|":
+                if isinstance(result[1], list):
+                    item2 = item2 + result[1][1:]
+                else:
+                    item2.append(result[1])
+                return item2
+
+            if item2[0] == "&":
+                value = ["&"]
+                for i in range(1, len(item2)):
+                    if isinstance(item2[i], list) and isinstance(result[1], list):
+                        value.append(item2[i] + result[1][1:])
+                    elif isinstance(item2[i], list) and not isinstance(result[1], list):
+                        value.append(item2[i].append(result[1]))
+                    elif not isinstance(item2[i], list) and isinstance(result[1], list):
+                        value.append(result[1].append(item2[i]))
+                    else:
+                        value.append(["|", item2[i], result[1]])
+                return value
+
+        elif isClause(result[2]):
+            item1 = distribution_or_over_and(result[1])
+            if item1[0] == "|":
+                if isinstance(result[2], list):
+                    item1 = item1 + result[2][1:]
+                else:
+                    item1.append(result[2])
+                return item1
+
+            if item1[0] == "&":
+                value = ["&"]
+                for i in range(1, len(item1)):
+                    if isinstance(item1[i], list) and isinstance(result[2], list):
+                        value.append(item1[i] + result[2][1:])
+                    elif isinstance(item1[i], list) and not isinstance(result[2], list):
+                        value.append(item1[i].append(result[2]))
+                    elif not isinstance(item1[i], list) and isinstance(result[2], list):
+                        value.append(result[2].append(item1[i]))
+                    else:
+                        value.append(["|", item1[i], result[2]])
+                return value
+        else:
+            item1 = distribution_or_over_and(result[1])
+            item2 = distribution_or_over_and(result[2])
+            # item[0] == "|", item is a clause
+            # item[0] == "&", item is a sentence
+            if item1[0] == "|" and item2[0] == "|":
+                return item1 + item2[1:]
+            elif item1[0] == "&" and item2[0] == "&":
+                return item1 + item2[1:]
+            elif item1[0] == "&" and item2[0] == "|":
+                value = ["&"]
+                for i in range(1, len(item1)):
+                    if isinstance(item1[i], list):
+                        value.append(item1[i] + item2[1:])
+                    else:
+                        value.append(item2.append(item1[i]))
+
+            elif item1[0] == "|" and item2[0] == "&":
+                value = ["&"]
+                for i in range(1, len(item2)):
+                    if isinstance(item2[i],list):
+                        value.append(item2[i] + item1[1:])
+                    else:
+                        value.append(item1.append(item2[i]))
+    if result[0] == "&":
+        if isClause(result[1]) and isClause(result[2]):
+            return result
+
+        elif isClause(result[1]):
+            item2 = distribution_or_over_and(result[2])
+            if item2[0] == "|":
+                return ["&", result[1], item2]
+
+            if item2[0] == "&":
+                value = ["&", result[1]]
+                for i in range(1, len(item2)):
+                    value.append(item2[i])
+                return value
+
+        elif isClause(result[2]):
+            item1 = distribution_or_over_and(result[1])
+            if item1[0] == "|":
+                return ["&", result[2], item1]
+
+            if item1[0] == "&":
+                value = ["&", result[2]]
+                for i in range(1, len(item1)):
+                    value.append(item1[i])
+                return value
+
+        elif not isClause(result[1]) and not isClause(result[2]):
+            item1 = distribution_or_over_and(result[1])
+            item2 = distribution_or_over_and(result[2])
+            if item1[0] == "|" and item2[0] == "|":
+                return ["&", item1, item2]
+
+            elif item1[0] == "&" and item2[0] == "&":
+                value = ["&"]
+                for i in range(1, len(item1)):
+                    value.append(item1[i])
+                for i in range(1, len(item2)):
+                    value.append(item2[i])
+                return value
+
+            elif item1[0] == "&" and item2[0] == "|":
+                value = ["&", item2]
+                for i in range(1, len(item1)):
+                    value.append(item1[i])
+                return value
+
+            elif item1[0] == "|" and item2[0] == "&":
+                value = ["&", item1]
+                for i in range(1, len(item2)):
+                    value.append(item2[i])
+                return value
 
 
 
@@ -233,9 +381,6 @@ def add_parsing_result_to_KB(result, KB):
             KB[predicate_name] = list(result)
 
 
-
-
-
 input_path = "./input.txt"
 (queries, ori_KB) = parseInputFile(input_path)
 
@@ -245,8 +390,14 @@ KB = {}
 for s in ori_KB:
     result = parser.parse(s)
     print(result)
+    result = eliminate_implication(result)
+    print("after elimination implication")
+    print(result)
     result = move_not_inward(result)
-    print("after")
+    print("after move ~ inwards")
+    print(result)
+    result = distribution_or_over_and(result)
+    print("after distribution")
     print(result)
     print("\n")
 
