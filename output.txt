@@ -1,45 +1,37 @@
+
 2
 Ancestor(Liz,Billy)
 Ancestor(Liz,Bob)
-9
-Mother(Liz,Charley)
-Father(Charley,Billy)
-(Mother(x,y) & Parent(x,y))
-(Parent(x,y) | Ancestor(x,y))
-((Parent(x,y) & Ancestor(y,z)) & Come(x))
-(~(Parent(x,y) & Ancestor(y,z)))
-(A(x) => B(y))
-((D(x,y) & F(y)) => C(x,y))
-(~(~(~A(z))))
+8
+Ancestor(Liz,Bob)
+(~(Mother(x,y) | Parent(x,y)))
+(Mother(x,y) | (A(x) | (~(Parent(x,y) & Father(y, z)))))
+(~(A(x) => B(y)))
+(B(y) => A(x))
+(C(x, z) & (D(e, f) => (B(y) => A(x))))
+(C(x, z) & ((D(e, f) => B(y)) => A(x)))
+((~(Parent(x,y) & Ancestor(y,z))) | Ancestor(x,z))
 
 
-def process_parsing_result(result, KB):
-    if isinstance(result, list):
-        if result[0] == "|":
-            predicates = list()
-            for i in range(1, len(result)):
-                if isinstance(result[i], list):
-
-
-        if result[0] == "=>":
-            result[0] = "|"
-            result[1] = ["~", result[1]]
-
-        if result[0] == "~":
-            for i in range(1, len(result)):
-                if not isinstance(result[i], list):
-                    result[i].positive = (not result[i].positive)
-                else:
-                    if result[i][0] == ""
-    else:
-        KB.append(result)
-
-def isClause(q):
-    if not isinstance(q, list):
-        return True
-    elif q[0] != "|":
-        return False
-    else:
-        for i in range(1, len(q)):
-            if isinstance(q[i], list):
-                return True
+6
+F(Bob)
+H(John)
+~H(Alice)
+~H(John)
+G(Bob)
+G(Tom)
+14
+(A(x) => H(x))
+(D(x,y) => (~H(y)))
+((B(x,y) & C(x,y)) => A(x))
+B(John,Alice)
+B(John,Bob)
+((D(x,y) & Q(y)) => C(x,y))
+D(John,Alice)
+Q(Bob)
+D(John,Bob)
+(F(x) => G(x))
+(G(x) => H(x))
+(H(x) => F(x))
+(R(x) => H(x))
+R(Tom)

@@ -1,3 +1,5 @@
+import string
+import random
 import ply.lex as lex
 import ply.yacc as yacc
 
@@ -32,20 +34,6 @@ class Clause(object):
         or_string = or_string[:len(or_string) - 3]
 
         return "clause: (" + or_string + ")"
-
-def parseInputFile(input_path):
-
-    with open(input_path, 'r') as f:
-        queries = []
-        knowledge_base = []
-        num_of_queries = int(f.readline().strip())
-        for i in range(num_of_queries):
-            queries.append(f.readline().strip())
-
-        num_of_kb = int(f.readline().strip())
-        for i in range(num_of_kb):
-            knowledge_base.append(f.readline().strip())
-        return (queries, knowledge_base)
 
 # set up tokens
 tokens = (
@@ -92,7 +80,6 @@ def t_error(t):
 
 # Build the lexer
 lexer = lex.lex()
-
 
 
 def p_not_expression(p):
@@ -142,6 +129,19 @@ def p_error(p):
 parser = yacc.yacc()
 
 
+def parseInputFile(input_path):
+
+    with open(input_path, 'r') as f:
+        queries = []
+        knowledge_base = []
+        num_of_queries = int(f.readline().strip())
+        for i in range(num_of_queries):
+            queries.append(f.readline().strip())
+
+        num_of_kb = int(f.readline().strip())
+        for i in range(num_of_kb):
+            knowledge_base.append(f.readline().strip())
+        return (queries, knowledge_base)
 
 
 def isClause(q):
@@ -368,60 +368,134 @@ def distribution_or_over_and(result):
                 return value
 
 
-def addClauseToKB(clauseList, KB):
-    new_clause = Clause(clauseList[1:])
-    for i in range(1, len(clauseList)):
-        predicate = clauseList[i]
+def var_gen():
+    var_list = [random.choice("abcdefghijklmnopqrstuvwxyz") for i in range(2)]
+    return ("".join(var_list))
+
+
+# # standardize variables of clauses
+# # standardize clause
+def standardize(clause, var_set):
+    new_visited_variables = set()
+    map = {}
+    for predicate in clause.predicates:
+        for i in range(len(predicate.arguments)):
+
+            if not predicate.arguments[i].islower():
+                continue
+
+            if predicate.arguments[i] not in var_set:
+                new_visited_variables.add(predicate.arguments[i])
+                continue
+            elif predicate.arguments[i] in var_set and predicate.arguments[i] in map:
+                predicate.arguments[i] = map[predicate.arguments[i]]
+            elif predicate.arguments[i] in var_set and predicate.arguments[i] not in map:
+                original_var = predicate.arguments[i]
+                new_var_found = False
+                for num in range(0, 26):
+                    new_var = chr(97 + num)
+                    if new_var in var_set:
+                        continue
+                    else:
+                        predicate.arguments[i] = new_var
+                        map[original_var] = new_var
+                        var_set.add(new_var)
+                        new_var_found = True
+                        break
+                while not new_var_found:
+                    new_var = var_gen()
+                    if new_var in var_set:
+                        continue
+                    else:
+                        predicate.arguments[i] = new_var
+                        map[original_var] = new_var
+                        var_set.add(new_var)
+                        new_var_found = True
+
+
+    for var in new_visited_variables:
+        var_set.add(var)
+
+
+
+
+
+
+def addClause2KB(clause, KB):
+    for i in range(0, len(clause.predicates)):
+        predicate = clause.predicates[i]
         if predicate.name in KB:
-            KB[predicate.name].append(new_clause)
+            KB[predicate.name].append(clause)
         else:
-            KB[predicate.name] = [new_clause]
+            KB[predicate.name] = [clause]
 
-
+#
+# def unify(x, y, theta):
+#
+#
+# # a simple resolution algorithm for propositional logic
+# def pl_resolution(KB, query):
+#     return None
 
 input_path = "./input.txt"
 (queries, ori_KB) = parseInputFile(input_path)
 
+var_set = set()
+var_map = {}
 
 KB = {}
 
 for s in ori_KB:
     result = parser.parse(s)
-    print(result)
+    # print(result)
     result = eliminate_implication(result)
-    print("after elimination implication")
-    print(result)
+    # print("after elimination implication")
+    # print(result)
     result = move_not_inward(result)
-    print("after move ~ inwards")
-    print(result)
+    # print("after move ~ inwards")
+    # print(result)
     result = distribution_or_over_and(result)
-    print("after distribution")
+    # print("after distribution")
     print(result)
-    print("\n")
+    # print("\n")
 
     if isinstance(result, Predicate):
+        new_clause = Clause([result])
+        standardize(new_clause, var_set)
+        print(new_clause)
         if result.name in KB:
-            KB[result.name].append(Clause([result]))
+            KB[result.name].append(new_clause)
         else:
-            KB[result.name] = [Clause([result])]
+            KB[result.name] = [new_clause]
     elif isinstance(result, list):
         if result[0] == "|":
-            addClauseToKB(result, KB)
+            new_clause = Clause(result[1:])
+            standardize(new_clause, var_set)
+            print(new_clause)
+            addClause2KB(new_clause, KB)
         elif result[0] == "&":
             for i in range(1, len(result)):
                 if isinstance(result[i], Predicate):
                     new_clause = Clause([result[i]])
+                    standardize(new_clause, var_set)
+                    print(new_clause)
                     if result[i].name in KB:
                         KB[result[i].name].append(new_clause)
                     else:
                         KB[result[i].name] = [new_clause]
                 elif isinstance(result[i], list):
-                    addClauseToKB(result[i], KB)
+                    new_clause = Clause(result[i][1:])
+                    standardize(new_clause, var_set)
+                    print(new_clause)
+                    addClause2KB(new_clause, KB)
+    print("\n")
 
-print(KB)
-print(KB["A"])
-print(len(KB["A"]))
+# for q in queries:
+#     query = parser.parse(q)
+#     print(query)
 
+print(var_map)
+print(var_set)
 
 
 
