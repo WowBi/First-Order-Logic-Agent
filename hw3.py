@@ -1,4 +1,3 @@
-import string
 import random
 import ply.lex as lex
 import ply.yacc as yacc
@@ -14,6 +13,12 @@ class Predicate(object):
         self.positive = positive
         self.type = "Predicate"
 
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return self.__dict__ == other.__dict__
+        else:
+            return False
+
     def __repr__(self):
         if self.positive:
             return self.name + "(" + ",".join(self.arguments) + ")"
@@ -24,8 +29,15 @@ class Clause(object):
     # predicates = []
     def __init__(self, predicates):
         self.predicates = predicates
-        # self.positive = positive
         self.type = "Clause"
+
+    # def __eq__(self, other):
+    #     if not isinstance(other, self.__class__ :
+    #         return False
+    #
+    #
+    # def __ne__(self, other):
+    #     return not self.__eq__(other)
 
     def __repr__(self):
         or_string = ""
@@ -33,7 +45,7 @@ class Clause(object):
             or_string = or_string + repr(p) + " | "
         or_string = or_string[:len(or_string) - 3]
 
-        return "clause: (" + or_string + ")"
+        return "clause: (" + or_string + ")\n"
 
 # set up tokens
 tokens = (
@@ -59,11 +71,7 @@ t_VAR = r'[a-z]'
 t_NOT = r'~'
 t_COMMA = r','
 
-# A regular expression rule with some action code
-def t_NUMBER(t):
-    r'\d+'
-    t.value = int(t.value)
-    return t
+# # A regular expression rule with some action code
 
 # Define a rule so we can track line numbers
 def t_newline(t):
@@ -263,11 +271,16 @@ def distribution_or_over_and(result):
                     if isinstance(item2[i], list) and isinstance(result[1], list):
                         value.append(item2[i] + result[1][1:])
                     elif isinstance(item2[i], list) and not isinstance(result[1], list):
-                        value.append(item2[i].append(result[1]))
+                        item2i = list(item2[i])
+                        item2i.append(result[1])
+                        value.append(item2i)
                     elif not isinstance(item2[i], list) and isinstance(result[1], list):
-                        value.append(result[1].append(item2[i]))
+                        result1 = list(result[1])
+                        result1.append(item2[i])
+                        value.append(result1)
                     else:
                         value.append(["|", item2[i], result[1]])
+
                 return value
 
         elif isClause(result[2]):
@@ -285,9 +298,13 @@ def distribution_or_over_and(result):
                     if isinstance(item1[i], list) and isinstance(result[2], list):
                         value.append(item1[i] + result[2][1:])
                     elif isinstance(item1[i], list) and not isinstance(result[2], list):
-                        value.append(item1[i].append(result[2]))
+                        item1i = list(item1[i])
+                        item1i.append(result[2])
+                        value.append(item1i)
                     elif not isinstance(item1[i], list) and isinstance(result[2], list):
-                        value.append(result[2].append(item1[i]))
+                        result2 = list(result[2])
+                        result2.append(item1[i])
+                        value.append(result2)
                     else:
                         value.append(["|", item1[i], result[2]])
                 return value
@@ -306,7 +323,10 @@ def distribution_or_over_and(result):
                     if isinstance(item1[i], list):
                         value.append(item1[i] + item2[1:])
                     else:
-                        value.append(item2.append(item1[i]))
+                        temp = list(item2)
+                        temp.append(item1[i])
+                        value.append(temp)
+                return value
 
             elif item1[0] == "|" and item2[0] == "&":
                 value = ["&"]
@@ -314,7 +334,11 @@ def distribution_or_over_and(result):
                     if isinstance(item2[i],list):
                         value.append(item2[i] + item1[1:])
                     else:
-                        value.append(item1.append(item2[i]))
+                        temp = list(item1)
+                        temp.append(item2[i])
+                        value.append(temp)
+                return value
+
     if result[0] == "&":
         if isClause(result[1]) and isClause(result[2]):
             return result
@@ -367,14 +391,14 @@ def distribution_or_over_and(result):
                     value.append(item2[i])
                 return value
 
-
+# generate a random variable with two letters
 def var_gen():
     var_list = [random.choice("abcdefghijklmnopqrstuvwxyz") for i in range(2)]
     return ("".join(var_list))
 
 
-# # standardize variables of clauses
-# # standardize clause
+# standardize variables of clauses
+# standardize clause
 def standardize(clause, var_set):
     new_visited_variables = set()
     map = {}
@@ -411,14 +435,8 @@ def standardize(clause, var_set):
                         map[original_var] = new_var
                         var_set.add(new_var)
                         new_var_found = True
-
-
     for var in new_visited_variables:
         var_set.add(var)
-
-
-
-
 
 
 def addClause2KB(clause, KB):
@@ -429,73 +447,122 @@ def addClause2KB(clause, KB):
         else:
             KB[predicate.name] = [clause]
 
-#
-# def unify(x, y, theta):
-#
-#
-# # a simple resolution algorithm for propositional logic
-# def pl_resolution(KB, query):
-#     return None
+
+# def unify(predicate1, predicate2, substitutions):
+#     if not substitutions:
+#         return None
+#     elif predicate1 == predicate2:
+#         return substitutions
+#     elif predicate1.name != predicate2.name:
+#         return None
+#     elif len(predicate1.arguments) != len(predicate2.arguments):
+#         return None
+#     else:
+#         for i in range(len(predicate1.arguments)):
+#             arg1 = predicate1.arguments[i]
+#             arg2 = predicate2.arguments[i]
+#             if arg1 == arg2:
+#                 continue
+#             elif arg1.islower() and not arg2.islower():
+#                 if arg1 in substitutions:
+#                     if substitutions[arg1] == arg2:
+#                         continue
+#                     else:
+#                         return None
+#                 else:
+#                     substitutions[arg1] = arg2
+#             elif a
+
+
+
+
+# a simple resolution algorithm for First Order Logic
+# query is a predicate
+# def fol_resolution(KB, query):
+#     query_name = query.name
+#     related_clauses = KB[query_name]
+#     new_clauses = []
+#     if related_clauses:
+#         while True:
+#             for i in range(len(related_clauses)):
+#                 if i + 1 < len(related_clauses):
+#                     for j in range(i + 1, len(related_clauses)):
+#                         c1 = related_clauses[i]
+#                         c2 = related_clauses[j]
+#                         resolvents = resolve(c1, c2, query_name)
+#                         if not resolvents:
+#                             return True
+#                         new_clauses.append(resolvents)
+#             # if new belongs to clauses
+#             for clause in new_clauses:
 
 input_path = "./input.txt"
 (queries, ori_KB) = parseInputFile(input_path)
 
 var_set = set()
-var_map = {}
 
-KB = {}
+KB_map = {}
+KB_clauses = list()
 
 for s in ori_KB:
     result = parser.parse(s)
-    # print(result)
+    print(result)
     result = eliminate_implication(result)
-    # print("after elimination implication")
-    # print(result)
+    print("after elimination implication")
+    print(result)
     result = move_not_inward(result)
-    # print("after move ~ inwards")
-    # print(result)
+    print("after move ~ inwards")
+    print(result)
     result = distribution_or_over_and(result)
-    # print("after distribution")
+    print("after distribution")
     print(result)
     # print("\n")
 
     if isinstance(result, Predicate):
         new_clause = Clause([result])
         standardize(new_clause, var_set)
+        # add new clauses to set list
+        KB_clauses.append(new_clause)
         print(new_clause)
-        if result.name in KB:
-            KB[result.name].append(new_clause)
+        if result.name in KB_map:
+            KB_map[result.name].append(new_clause)
         else:
-            KB[result.name] = [new_clause]
+            KB_map[result.name] = [new_clause]
     elif isinstance(result, list):
         if result[0] == "|":
             new_clause = Clause(result[1:])
             standardize(new_clause, var_set)
+            # add new clauses to set list
+            KB_clauses.append(new_clause)
             print(new_clause)
-            addClause2KB(new_clause, KB)
+            addClause2KB(new_clause, KB_map)
         elif result[0] == "&":
             for i in range(1, len(result)):
                 if isinstance(result[i], Predicate):
                     new_clause = Clause([result[i]])
                     standardize(new_clause, var_set)
+                    # add new clauses to set list
+                    KB_clauses.append(new_clause)
                     print(new_clause)
-                    if result[i].name in KB:
-                        KB[result[i].name].append(new_clause)
+                    if result[i].name in KB_map:
+                        KB_map[result[i].name].append(new_clause)
                     else:
-                        KB[result[i].name] = [new_clause]
+                        KB_map[result[i].name] = [new_clause]
                 elif isinstance(result[i], list):
                     new_clause = Clause(result[i][1:])
                     standardize(new_clause, var_set)
+                    # add new clauses to set list
+                    KB_clauses.append(new_clause)
                     print(new_clause)
-                    addClause2KB(new_clause, KB)
+                    addClause2KB(new_clause, KB_map)
     print("\n")
 
 # for q in queries:
 #     query = parser.parse(q)
 #     print(query)
 
-print(var_map)
-print(var_set)
+# print(var_set)
+print(KB_clauses)
 
 
 

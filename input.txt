@@ -1,12 +1,10 @@
 2
 Ancestor(Liz,Billy)
 Ancestor(Liz,Bob)
-8
+6
 Ancestor(Liz,Bob)
 (~(Mother(x,y) | Parent(x,y)))
 (Mother(x,y) | (A(x) | (~(Parent(x,y) & Father(y, z)))))
 (~(A(x) => B(y)))
-(B(y) => A(x))
-(C(x, z) & (D(e, f) => (B(y) => A(x))))
-(C(x, z) & ((D(e, f) => B(y)) => A(x)))
-(~(Mother(x,y) | Parent(x,y)))
+(B(Beta) => A(x))
+((~(Parent(x,y) & Ancestor(y,z))) | ((Ancestor(x,z) & B(x))& C(X)))

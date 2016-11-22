@@ -10,7 +10,7 @@ Ancestor(Liz,Bob)
 (B(y) => A(x))
 (C(x, z) & (D(e, f) => (B(y) => A(x))))
 (C(x, z) & ((D(e, f) => B(y)) => A(x)))
-((~(Parent(x,y) & Ancestor(y,z))) | Ancestor(x,z))
+((~(Parent(x,y) & Ancestor(y,z))) | (Ancestor(x,z) & B(x)))
 
 
 6
