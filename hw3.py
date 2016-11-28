@@ -1,7 +1,7 @@
 import random
 import ply.lex as lex
 import ply.yacc as yacc
-
+from copy import deepcopy
 
 class Predicate(object):
     # positive = True
@@ -119,6 +119,9 @@ def p_predicate_argument(p):
     '''predicate : FACTOR LPAREN argument RPAREN'''
     p[0] = Predicate(p[1], p[3])
 
+def p_not_predicate_argument(p):
+    '''predicate : NOT FACTOR LPAREN argument RPAREN'''
+    p[0] = Predicate(p[2], p[4], False)
 
 def p_arguments_argument(p):
     '''argument : argument COMMA argument'''
@@ -451,110 +454,73 @@ def addClause2KB(clause, KB):
 def equality_lists(list1, list2):
     if len(list1) != len(list2):
         return False
-    for item in list1:
-        if item not in list2:
+    for i in range(len(list1)):
+        if list1[i] != list2[i]:
             return False
     return True
 
+
+# return value: (can_unify, substitutions)
 def unify(predicate1, predicate2):
     # curr_substitutions = dict((k, v) for k, v in substitutions.items())
     curr_substitutions = {}
-    if (predicate1.name == predicate2.name) and (predicate1.positive == (not predicate2.positive)):
-        args1 = predicate1.arguments
-        args2 = predicate2.arguments
-        if equality_lists(args1, args2):
-            return (True, {})
-        else:
-            for i in range(len(args1)):
-                if args1[i] == args2[i]:
-                    continue
-                elif not args1[i].islower() and not args2[i].islower():
-                    return (False, {})
 
-                elif args1[i].islower() and not args2[i].islower():
-                    if args1[i] in curr_substitutions and curr_substitutions[args1[i]] != args2[i]:
-                        return (False, {})
-                    curr_substitutions[args1[i]] = args2[i]
-
-                elif not args1[i].islower() and args2[i].islower():
-                    if args2[i] in curr_substitutions and curr_substitutions[args2[i]] != args1[i]:
-                        return (False, {})
-                    curr_substitutions[args2[i]] = args1[i]
-
-                elif args1[i].islower() and args2[i].islower():
-                    if args1[i] in curr_substitutions and args2[i] in curr_substitutions:
-                        if curr_substitutions[args1[i]] != curr_substitutions[args2[i]]:
-                            return (False, {})
-                    elif args1[i] in curr_substitutions:
-                        curr_substitutions[args2[i]] = curr_substitutions[args1[i]]
-                    elif args2[i] in curr_substitutions:
-                        curr_substitutions[args1[i]] = curr_substitutions[args2[i]]
-                    # if they both are not in curr_substitutions, leave them alone
-            return (True, curr_substitutions)
+    args1 = predicate1.arguments
+    args2 = predicate2.arguments
+    if equality_lists(args1, args2):
+        return (True, {})
     else:
-        return (False, {})
+        for i in range(len(args1)):
+            if args1[i] == args2[i]:
+                continue
+            elif not args1[i].islower() and not args2[i].islower():
+                return (False, {})
 
+            elif args1[i].islower() and not args2[i].islower():
+                if args1[i] in curr_substitutions and curr_substitutions[args1[i]] != args2[i]:
+                    return (False, {})
+                curr_substitutions[args1[i]] = args2[i]
 
+            elif not args1[i].islower() and args2[i].islower():
+                if args2[i] in curr_substitutions and curr_substitutions[args2[i]] != args1[i]:
+                    return (False, {})
+                curr_substitutions[args2[i]] = args1[i]
+
+            elif args1[i].islower() and args2[i].islower():
+                if args1[i] in curr_substitutions and args2[i] in curr_substitutions:
+                    if curr_substitutions[args1[i]] != curr_substitutions[args2[i]]:
+                        return (False, {})
+                elif args1[i] in curr_substitutions:
+                    curr_substitutions[args2[i]] = curr_substitutions[args1[i]]
+                elif args2[i] in curr_substitutions:
+                    curr_substitutions[args1[i]] = curr_substitutions[args2[i]]
+                # if they both are not in curr_substitutions, leave them alone
+        return (True, curr_substitutions)
+
+# return value: (can_resolve, list of new-generated clauses)
 def resolve(clause1, clause2):
-    if len(clause1.predicates) == 1 and len(clause2.predicates) == 1:
-        (success, substitutions) = unify(clause1.predicates[0], clause2.predicates[0])
-        if not success:
-            return (False, [])
-        elif success and not substitutions:
-            # contradiciton flag, and substitution
-            return (True, []) # contradiction
-        elif success and substitutions:
-            return (False, [])
 
-    elif len(clause1.predicates) == 1 and len(clause2.predicates) > 1:
-        resolvent_s = []
-        for i in range(len(clause2.predicates)):
-            pre = clause2.predicates[i]
-            (success, substitutions) = unify(clause1.predicates[0], pre)
-            if success and not substitutions:
-                return (True, [])
-            elif success and substitutions:
-                new_predicates = list(clause2.predicates)
-                del new_predicates[i]
-                for p in new_predicates:
-                    for index in range(len(p.arguments)):
-                        if p.arguments[index] in substitutions:
-                            p.arguments[index] = substitutions[p.arguments[index]]
-                resolvent_s.append(Clause(new_predicates))
-        return [False, resolvent_s]
+    resolvent_s = []
+    for i in range(len(clause1.predicates)):
+        for j in range(len(clause2.predicates)):
+            pre1 = clause1.predicates[i]
+            pre2 = clause2.predicates[j]
 
-    elif len(clause2.predicates) == 1 and len(clause1.predicates) > 1:
-        resolvent_s = []
-        for i in range(len(clause1.predicates)):
-            pre = clause1.predicates[i]
-            (success, substitutions) = unify(clause2.predicates[0], pre)
-            if success and not substitutions:
-                return (True, [])
-            elif success and substitutions:
-                new_predicates = list(clause1.predicates)
-                del new_predicates[i]
-                for p in new_predicates:
-                    for index in range(len(p.arguments)):
-                        if p.arguments[index] in substitutions:
-                            p.arguments[index] = substitutions[p.arguments[index]]
-                resolvent_s.append(Clause(new_predicates))
-        return [False, resolvent_s]
+            if (pre1.name == pre2.name) and (pre1.positive == (not pre2.positive)):
 
+                (can_unify, substitutions) = unify(pre1, pre2)
 
-    elif len(clause2.predicates) > 1 and len(clause1.predicates) > 1:
-        resolvent_s = []
-        for i in range(len(clause1.predicates)):
-            for j in range(len(clause2.predicates)):
-                pre1 = clause1.predicates[i]
-                pre2 = clause2.predicates[j]
-                (success, substitutions) = unify(pre1, pre2)
-                if success and not substitutions:
-                    return (True, [])
-                elif success and substitutions:
-                    new_predicates1 = list(clause1.predicates)
-                    new_predicates2 = list(clause2.predicates)
-                    del new_predicates1[i]
-                    del new_predicates2[j]
+                if not can_unify:
+                    continue
+
+                new_predicates1 = list(clause1.predicates)
+                new_predicates2 = list(clause2.predicates)
+                del new_predicates1[i]
+                del new_predicates2[j]
+
+                if len(substitutions) != 0:
+                    print(new_predicates1)
+                    print(new_predicates2)
                     for p in new_predicates1:
                         for index in range(len(p.arguments)):
                             if p.arguments[index] in substitutions:
@@ -563,8 +529,21 @@ def resolve(clause1, clause2):
                         for index in range(len(p.arguments)):
                             if p.arguments[index] in substitutions:
                                 p.arguments[index] = substitutions[p.arguments[index]]
+                    print(new_predicates1)
+                    print(new_predicates2)
+
+                # new_predicates1 and new_predicates2 may be able to resolve
+                # !!!!
+                (can_resolve, sub_resolvent_s) = resolve(Clause(new_predicates1), Clause(new_predicates2))
+                if not can_resolve:
                     resolvent_s.append(Clause(new_predicates1 + new_predicates2))
-        return [False, resolvent_s]
+                else:
+                    resolvent_s = resolvent_s + sub_resolvent_s
+
+    if len(resolvent_s) == 0:
+        return (False, resolvent_s)
+    else:
+        return (True, resolvent_s)
 
 
 
@@ -582,23 +561,28 @@ def fol_resolution(KB_clauses, query):
     query.positive = (not query.positive)
     added_clause = Clause([query])
     KB_clauses.append(added_clause)
+
+    # print(resolve(KB_clauses[4], KB_clauses[6]))
     new_clauses = []
     while True:
         for i in range(len(KB_clauses)):
             for j in range(i + 1, len(KB_clauses)):
-                (contradiction, resolvent_s) = resolve(KB_clauses[i], KB_clauses[j])
+                (can_resolve, resolvent_s) = resolve(KB_clauses[i], KB_clauses[j])
+                # print(KB_clauses[i], KB_clauses[j])
+                # print(resolvent_s)
                 # resolvent_s are new generated clauses
-                if contradiction:
-                    return True
-                for c in resolvent_s:
-                    if c not in new_clauses:
-                        new_clauses.append(c)
+                for clause in resolvent_s:
+                    if len(clause.predicates) == 0:
+                        return True
+                    if clause not in new_clauses:
+                        new_clauses.append(clause)
         if belong_to(new_clauses, KB_clauses):
             return False
-        KB_clauses = list(set(KB_clauses + new_clauses))
+        all_clauses = KB_clauses + new_clauses
+        KB_clauses = list(set(all_clauses))
 
 
-input_path = "./test1.txt"
+input_path = "./input.txt"
 (queries, ori_KB) = parseInputFile(input_path)
 
 var_set = set()
@@ -608,16 +592,16 @@ KB_clauses = list()
 
 for s in ori_KB:
     result = parser.parse(s)
-    print(result)
+    # print(result)
     result = eliminate_implication(result)
-    print("after elimination implication")
-    print(result)
+    # print("after elimination implication")
+    # print(result)
     result = move_not_inward(result)
-    print("after move ~ inwards")
-    print(result)
+    # print("after move ~ inwards")
+    # print(result)
     result = distribution_or_over_and(result)
-    print("after distribution")
-    print(result)
+    # print("after distribution")
+    # print(result)
     # print("\n")
 
     if isinstance(result, Predicate):
@@ -657,30 +641,41 @@ for s in ori_KB:
                     KB_clauses.append(new_clause)
                     # print(new_clause)
                     addClause2KB(new_clause, KB_map)
-    print("\n")
+    # print("\n")
 
-
+print(KB_clauses)
 
 print("My solutions: ")
 for q in queries:
     query = parser.parse(q)
-    query_result = fol_resolution(KB_clauses, query)
+    # print("query: ", query.name)
+    KB = deepcopy(KB_clauses)
+    query_result = fol_resolution(KB, query)
+
     print(query_result)
 
 # print(var_set)
 # print(KB_clauses)
 
-# a = Predicate("yes", [1,2,3], True)
-# b = Predicate("yes", [1,2,3], True)
+# a = Predicate("yes", ["1","2","3"], True)
+# b = Predicate("yes", ["x"], True)
 # c = Predicate("no", ["x"])
-# print(a == b)
+# # print(a == b)
 #
 # a_clause = Clause([a, c])
 # b_clause = Clause([b, c])
-# print(a_clause == b_clause)
-#
+# # print(a_clause == b_clause)
+# #
 # test = [a_clause, b_clause]
-# print(a_clause in test)
+# test2 = list(test)
+# # print(a_clause in test)
+# print(test)
+# print(test2)
+#
+# # test[0].predicates[0] = "YOYO"
+# test.append(b_clause)
+# print(test)
+# print(test2)
 
 
 
