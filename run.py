@@ -1,7 +1,10 @@
-import random
+#!/usr/bin/python
+from collections import deque
 import ply.lex as lex
 import ply.yacc as yacc
 from copy import deepcopy
+import time
+import re
 
 class Predicate(object):
     # positive = True
@@ -16,8 +19,7 @@ class Predicate(object):
     def __eq__(self, other):
         if isinstance(other, self.__class__):
             return self.__dict__ == other.__dict__
-        else:
-            return False
+
 
     def __repr__(self):
         if self.positive:
@@ -37,9 +39,6 @@ class Clause(object):
         else:
             return self.__dict__ == other.__dict__
 
-    # def __ne__(self, other):
-    #     return not self.__eq__(other)
-
     def __repr__(self):
         or_string = ""
         for p in self.predicates:
@@ -56,7 +55,6 @@ tokens = (
    'AND',
    'OR',
    'IMPLY',
-   'VAR',
    'NOT',
    'COMMA',
 )
@@ -64,11 +62,10 @@ tokens = (
 # Regular expression rules for simple tokens
 t_LPAREN  = r'\('
 t_RPAREN  = r'\)'
-t_FACTOR = r'[A-Z][a-z]*'
+t_FACTOR = r'[A-z]+'
 t_AND = r'\&'
 t_OR = r'\|'
 t_IMPLY = r'=>'
-t_VAR = r'[a-z]'
 t_NOT = r'~'
 t_COMMA = r','
 
@@ -129,8 +126,7 @@ def p_arguments_argument(p):
 
 
 def p_argument_factor(p):
-    '''argument : FACTOR
-                | VAR'''
+    '''argument : FACTOR'''
     p[0] = [p[1]]
 
 # Error rule for syntax errors
@@ -148,11 +144,13 @@ def parseInputFile(input_path):
         knowledge_base = []
         num_of_queries = int(f.readline().strip())
         for i in range(num_of_queries):
-            queries.append(f.readline().strip())
+            sentence = f.readline().replace(" ", "")
+            queries.append(sentence)
 
         num_of_kb = int(f.readline().strip())
         for i in range(num_of_kb):
-            knowledge_base.append(f.readline().strip())
+            sen = f.readline().replace(" ", "")
+            knowledge_base.append(sen)
         return (queries, knowledge_base)
 
 
@@ -275,11 +273,11 @@ def distribution_or_over_and(result):
                     if isinstance(item2[i], list) and isinstance(result[1], list):
                         value.append(item2[i] + result[1][1:])
                     elif isinstance(item2[i], list) and not isinstance(result[1], list):
-                        item2i = list(item2[i])
+                        item2i = deepcopy(item2[i])
                         item2i.append(result[1])
                         value.append(item2i)
                     elif not isinstance(item2[i], list) and isinstance(result[1], list):
-                        result1 = list(result[1])
+                        result1 = deepcopy(result[1])
                         result1.append(item2[i])
                         value.append(result1)
                     else:
@@ -302,11 +300,11 @@ def distribution_or_over_and(result):
                     if isinstance(item1[i], list) and isinstance(result[2], list):
                         value.append(item1[i] + result[2][1:])
                     elif isinstance(item1[i], list) and not isinstance(result[2], list):
-                        item1i = list(item1[i])
+                        item1i = deepcopy(item1[i])
                         item1i.append(result[2])
                         value.append(item1i)
                     elif not isinstance(item1[i], list) and isinstance(result[2], list):
-                        result2 = list(result[2])
+                        result2 = deepcopy(result[2])
                         result2.append(item1[i])
                         value.append(result2)
                     else:
@@ -327,7 +325,7 @@ def distribution_or_over_and(result):
                     if isinstance(item1[i], list):
                         value.append(item1[i] + item2[1:])
                     else:
-                        temp = list(item2)
+                        temp = deepcopy(item2)
                         temp.append(item1[i])
                         value.append(temp)
                 return value
@@ -338,7 +336,7 @@ def distribution_or_over_and(result):
                     if isinstance(item2[i],list):
                         value.append(item2[i] + item1[1:])
                     else:
-                        temp = list(item1)
+                        temp = deepcopy(item1)
                         temp.append(item2[i])
                         value.append(temp)
                 return value
@@ -395,60 +393,59 @@ def distribution_or_over_and(result):
                     value.append(item2[i])
                 return value
 
-# generate a random variable with two letters
-def var_gen():
-    var_list = [random.choice("abcdefghijklmnopqrstuvwxyz") for i in range(2)]
-    return ("".join(var_list))
-
-
+def hasNumbers(inputString):
+    return any(char.isdigit() for char in inputString)
 # standardize variables of clauses
 # standardize clause
-def standardize(clause, var_set):
+def standardize(clause, var_map):
     new_visited_variables = set()
     map = {}
     for predicate in clause.predicates:
         for i in range(len(predicate.arguments)):
-
-            if not predicate.arguments[i].islower():
+            arg = predicate.arguments[i]
+            if not arg.islower():
                 continue
 
-            if predicate.arguments[i] not in var_set:
-                new_visited_variables.add(predicate.arguments[i])
-                continue
-            elif predicate.arguments[i] in var_set and predicate.arguments[i] in map:
-                predicate.arguments[i] = map[predicate.arguments[i]]
-            elif predicate.arguments[i] in var_set and predicate.arguments[i] not in map:
-                original_var = predicate.arguments[i]
-                new_var_found = False
-                for num in range(0, 26):
-                    new_var = chr(97 + num)
-                    if new_var in var_set:
+            if hasNumbers(arg):
+                match = re.match(r"([a-z]+)([0-9]+)", arg, re.I)
+                if match:
+                    items = match.groups()
+                    # items is tuple
+                    prefix = items[0]
+                    if prefix not in var_map:
+                        new_visited_variables.add(prefix)
                         continue
-                    else:
+                    elif prefix in var_map and prefix in map:
+                        predicate.arguments[i] = map[prefix]
+                    elif prefix in var_map and prefix not in map:
+
+                        new_var = prefix + str(var_map[prefix])
                         predicate.arguments[i] = new_var
-                        map[original_var] = new_var
-                        var_set.add(new_var)
-                        new_var_found = True
-                        break
-                while not new_var_found:
-                    new_var = var_gen()
-                    if new_var in var_set:
-                        continue
-                    else:
-                        predicate.arguments[i] = new_var
-                        map[original_var] = new_var
-                        var_set.add(new_var)
-                        new_var_found = True
+                        map[prefix] = new_var
+                        var_map[prefix] = var_map[prefix] + 1
+            else:
+                if arg not in var_map:
+                    new_visited_variables.add(arg)
+                    continue
+                elif arg in var_map and arg in map:
+                    predicate.arguments[i] = map[arg]
+                elif arg in var_map and arg not in map:
+
+                    new_var = arg + str(var_map[arg])
+                    predicate.arguments[i] = new_var
+                    map[arg] = new_var
+                    var_map[arg] = var_map[arg] + 1
+
     for var in new_visited_variables:
-        var_set.add(var)
+        var_map[var] = 1
 
 
 def addClause2KB(clause, KB):
     for i in range(0, len(clause.predicates)):
         predicate = clause.predicates[i]
-        if predicate.name in KB:
+        if predicate.name in KB and clause not in KB[predicate.name]:
             KB[predicate.name].append(clause)
-        else:
+        elif predicate.name not in KB:
             KB[predicate.name] = [clause]
 
 def equality_lists(list1, list2):
@@ -459,10 +456,8 @@ def equality_lists(list1, list2):
             return False
     return True
 
-
 # return value: (can_unify, substitutions)
 def unify(predicate1, predicate2):
-    # curr_substitutions = dict((k, v) for k, v in substitutions.items())
     curr_substitutions = {}
 
     args1 = predicate1.arguments
@@ -494,57 +489,92 @@ def unify(predicate1, predicate2):
                     curr_substitutions[args2[i]] = curr_substitutions[args1[i]]
                 elif args2[i] in curr_substitutions:
                     curr_substitutions[args1[i]] = curr_substitutions[args2[i]]
+                else:
+                    curr_substitutions[args1[i]] = args2[i]
                 # if they both are not in curr_substitutions, leave them alone
         return (True, curr_substitutions)
 
+# return value: add_flag(True or False)
+def simplify(clause):
+    predicates = clause.predicates
+    delete_index = []
+    for i in range(len(predicates) - 1):
+        for j in range(i + 1, len(predicates)):
+            if predicates[i].name == predicates[j].name:
+                args1 = predicates[i].arguments
+                args2 = predicates[j].arguments
+                if len(args1) != len(args2):
+                    continue
+                if predicates[i].positive == (not predicates[j].positive):
+                    (unify_flag, substitutions) = unify(predicates[i], predicates[j])
+
+                    if unify_flag:
+                        all_lowercase_values = True
+                        for (k, v) in substitutions.items():
+                            if not v.islower():
+                                all_lowercase_values = False
+                        if all_lowercase_values:
+                            return False
+                else:
+                    if equality_lists(args1, args2):
+                        delete_index.append(i)
+                        continue
+                    (unify_flag, substitutions) = unify(predicates[i], predicates[j])
+                    if unify_flag:
+                        all_lowercase_values = True
+                        for (k,v) in substitutions.items():
+                            if not v.islower():
+                                all_lowercase_values = False
+                        if all_lowercase_values:
+                            delete_index.append(i)
+
+    delete_index.sort(reverse = True)
+    for index in delete_index:
+        del predicates[index]
+    return True
+
+
 # return value: (can_resolve, list of new-generated clauses)
-def resolve(clause1, clause2):
+def resolve(clause1, clause2, var_map):
 
     resolvent_s = []
     for i in range(len(clause1.predicates)):
         for j in range(len(clause2.predicates)):
+
             pre1 = clause1.predicates[i]
             pre2 = clause2.predicates[j]
 
             if (pre1.name == pre2.name) and (pre1.positive == (not pre2.positive)):
-
                 (can_unify, substitutions) = unify(pre1, pre2)
-
                 if not can_unify:
                     continue
 
-                new_predicates1 = list(clause1.predicates)
-                new_predicates2 = list(clause2.predicates)
+                new_predicates1 = deepcopy(clause1.predicates)
+                new_predicates2 = deepcopy(clause2.predicates)
+
                 del new_predicates1[i]
                 del new_predicates2[j]
 
-                if len(substitutions) != 0:
-                    print(new_predicates1)
-                    print(new_predicates2)
-                    for p in new_predicates1:
-                        for index in range(len(p.arguments)):
-                            if p.arguments[index] in substitutions:
-                                p.arguments[index] = substitutions[p.arguments[index]]
-                    for p in new_predicates2:
-                        for index in range(len(p.arguments)):
-                            if p.arguments[index] in substitutions:
-                                p.arguments[index] = substitutions[p.arguments[index]]
-                    print(new_predicates1)
-                    print(new_predicates2)
+                for p in new_predicates1:
+                    for index in range(len(p.arguments)):
+                        if p.arguments[index] in substitutions:
+                            p.arguments[index] = substitutions[p.arguments[index]]
+                for p in new_predicates2:
+                    for index in range(len(p.arguments)):
+                        if p.arguments[index] in substitutions:
+                            p.arguments[index] = substitutions[p.arguments[index]]
 
-                # new_predicates1 and new_predicates2 may be able to resolve
-                # !!!!
-                (can_resolve, sub_resolvent_s) = resolve(Clause(new_predicates1), Clause(new_predicates2))
-                if not can_resolve:
-                    resolvent_s.append(Clause(new_predicates1 + new_predicates2))
-                else:
-                    resolvent_s = resolvent_s + sub_resolvent_s
+                new_clause = Clause(new_predicates1 + new_predicates2)
+                # processing new generated clause
+                standardize(new_clause, var_map)
+                keep_flag = simplify(new_clause)
+                if keep_flag:
+                    resolvent_s.append(new_clause)
 
     if len(resolvent_s) == 0:
         return (False, resolvent_s)
     else:
         return (True, resolvent_s)
-
 
 
 # list1 and list2 only contains clauses
@@ -554,128 +584,140 @@ def belong_to(list1, list2):
             return False
     return True
 
-# a simple resolution algorithm for First Order Logic
-# query is a predicate
-# may need remove new added clause after this process
-def fol_resolution(KB_clauses, query):
+
+def resolution(KB_map, query, var_map):
+    start = time.time()
     query.positive = (not query.positive)
     added_clause = Clause([query])
-    KB_clauses.append(added_clause)
 
-    # print(resolve(KB_clauses[4], KB_clauses[6]))
-    new_clauses = []
-    while True:
-        for i in range(len(KB_clauses)):
-            for j in range(i + 1, len(KB_clauses)):
-                (can_resolve, resolvent_s) = resolve(KB_clauses[i], KB_clauses[j])
-                # print(KB_clauses[i], KB_clauses[j])
-                # print(resolvent_s)
-                # resolvent_s are new generated clauses
-                for clause in resolvent_s:
-                    if len(clause.predicates) == 0:
-                        return True
-                    if clause not in new_clauses:
-                        new_clauses.append(clause)
-        if belong_to(new_clauses, KB_clauses):
+    if query.name not in KB_map:
+        KB_map[query.name] = [added_clause]
+    elif added_clause not in KB_map[query.name]:
+        KB_map[query.name].append(added_clause)
+    else:
+        return True
+
+    key = query.name
+    related_clauses = KB_map[key]
+    queue = deque([])
+    all_resolvent_s = []
+
+    for clause in related_clauses:
+        if clause == added_clause:
+            continue
+        (can_resolve, resolvent_s) = resolve(added_clause, clause, var_map)
+        for clause in resolvent_s:
+            if len(clause.predicates) == 0:
+                return True
+            queue.append(clause)
+        all_resolvent_s = all_resolvent_s + resolvent_s
+
+    for item in all_resolvent_s:
+        for p in item.predicates:
+            if p.name in KB_map and item not in KB_map[p.name]:
+                KB_map[p.name].append(item)
+            elif p.name not in KB_map:
+                KB_map[p.name] = [item]
+
+
+    while queue:
+        now = time.time()
+        if now - start > 30:
             return False
-        all_clauses = KB_clauses + new_clauses
-        KB_clauses = list(set(all_clauses))
 
+        curr_clause = queue.popleft()
+        all_new_clauses = []
+
+        for pre in curr_clause.predicates:
+            if pre.name not in KB_map:
+                continue
+            else:
+                for c in KB_map[pre.name]:
+                    now = time.time()
+                    if now - start > 30:
+                        return False
+
+                    if c == curr_clause:
+                        continue
+                    (resolve_flag, new_clauses) = resolve(curr_clause, c, var_map)
+                    for cl in new_clauses:
+                        if len(cl.predicates) == 0:
+                            return True
+                        queue.append(cl)
+                    all_new_clauses = all_new_clauses + new_clauses
+        # add new clauses to KB
+        for claus in all_new_clauses:
+            now = time.time()
+            if now - start > 30:
+                return False
+            for p in claus.predicates:
+                if p.name in KB_map and claus not in KB_map[p.name]:
+                    KB_map[p.name].append(claus)
+                elif p.name not in KB_map:
+                    KB_map[p.name] = [claus]
+    return False
+
+
+# ------------------  main start  --------------------------
 
 input_path = "./input.txt"
+output_path = "./output.txt"
 (queries, ori_KB) = parseInputFile(input_path)
 
-var_set = set()
-
+var_map = {}
 KB_map = {}
-KB_clauses = list()
 
 for s in ori_KB:
     result = parser.parse(s)
-    # print(result)
+
     result = eliminate_implication(result)
-    # print("after elimination implication")
-    # print(result)
+
     result = move_not_inward(result)
-    # print("after move ~ inwards")
-    # print(result)
+
     result = distribution_or_over_and(result)
-    # print("after distribution")
-    # print(result)
-    # print("\n")
 
     if isinstance(result, Predicate):
         new_clause = Clause([result])
-        standardize(new_clause, var_set)
-        # add new clauses to set list
-        KB_clauses.append(new_clause)
-        # print(new_clause)
-        if result.name in KB_map:
+        standardize(new_clause, var_map)
+        if result.name in KB_map and new_clause not in KB_map[result.name]:
             KB_map[result.name].append(new_clause)
-        else:
+        elif result.name not in KB_map:
             KB_map[result.name] = [new_clause]
+
     elif isinstance(result, list):
         if result[0] == "|":
             new_clause = Clause(result[1:])
-            standardize(new_clause, var_set)
-            # add new clauses to set list
-            KB_clauses.append(new_clause)
-            # print(new_clause)
+            standardize(new_clause, var_map)
             addClause2KB(new_clause, KB_map)
+
         elif result[0] == "&":
             for i in range(1, len(result)):
                 if isinstance(result[i], Predicate):
                     new_clause = Clause([result[i]])
-                    standardize(new_clause, var_set)
-                    # add new clauses to set list
-                    KB_clauses.append(new_clause)
-                    # print(new_clause)
-                    if result[i].name in KB_map:
+                    standardize(new_clause, var_map)
+                    if result[i].name in KB_map and new_clause not in KB_map[result[i].name]:
                         KB_map[result[i].name].append(new_clause)
-                    else:
+                    elif result[i].name not in KB_map:
                         KB_map[result[i].name] = [new_clause]
                 elif isinstance(result[i], list):
                     new_clause = Clause(result[i][1:])
-                    standardize(new_clause, var_set)
-                    # add new clauses to set list
-                    KB_clauses.append(new_clause)
-                    # print(new_clause)
+                    standardize(new_clause, var_map)
                     addClause2KB(new_clause, KB_map)
-    # print("\n")
 
-print(KB_clauses)
+with open(output_path, 'w') as f:
 
-print("My solutions: ")
-for q in queries:
-    query = parser.parse(q)
-    # print("query: ", query.name)
-    KB = deepcopy(KB_clauses)
-    query_result = fol_resolution(KB, query)
+    for q in queries:
+        query = parser.parse(q)
+        map = deepcopy(KB_map)
+        query_result = resolution(map, query, var_map)
 
-    print(query_result)
+        if query_result:
+            print_result = "TRUE"
+        else:
+            print_result = "FALSE"
 
-# print(var_set)
-# print(KB_clauses)
+        f.write(print_result + '\n')
 
-# a = Predicate("yes", ["1","2","3"], True)
-# b = Predicate("yes", ["x"], True)
-# c = Predicate("no", ["x"])
-# # print(a == b)
-#
-# a_clause = Clause([a, c])
-# b_clause = Clause([b, c])
-# # print(a_clause == b_clause)
-# #
-# test = [a_clause, b_clause]
-# test2 = list(test)
-# # print(a_clause in test)
-# print(test)
-# print(test2)
-#
-# # test[0].predicates[0] = "YOYO"
-# test.append(b_clause)
-# print(test)
-# print(test2)
 
 
 
